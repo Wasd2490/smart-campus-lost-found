@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 - 智慧校园失物登记认领系统</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container auth-wrap">
+  <div class="card">
+    <div class="auth-title">欢迎回来</div>
+    <div class="auth-sub">登录智慧校园失物登记认领系统</div>
+    <div id="msg"></div>
+    <div class="form-group">
+      <label>账号</label>
+      <input type="text" id="username" placeholder="请输入账号">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input type="password" id="password" placeholder="请输入密码">
+    </div>
+    <div class="form-actions">
+      <button class="btn" style="width:100%;" onclick="doLogin()">登 录</button>
+    </div>
+    <div style="text-align:center;margin-top:18px;font-size:13px;color:var(--text-secondary);">
+      还没有账号？<a href="/register.html">立即注册</a>
+    </div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+async function doLogin() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  if (!username || !password) {
+    document.getElementById('msg').innerHTML = '<div class="alert error">请输入账号和密码</div>';
+    return;
+  }
+  const r = await api('/api/login', { method: 'POST', body: { username, password } });
+  if (r.error) {
+    document.getElementById('msg').innerHTML = `<div class="alert error">${escapeHtml(r.error)}</div>`;
+    return;
+  }
+  location.href = '/';
+}
+</script>
+</body>
+</html>

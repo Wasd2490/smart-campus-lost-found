@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>注册 - 智慧校园失物登记认领系统</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container auth-wrap">
+  <div class="card">
+    <div class="auth-title">创建账号</div>
+    <div class="auth-sub">注册后即可发布失物与招领信息</div>
+    <div id="msg"></div>
+    <div class="form-group">
+      <label>登录账号 *</label>
+      <input type="text" id="username" placeholder="字母或数字">
+    </div>
+    <div class="form-group">
+      <label>密码 *</label>
+      <input type="password" id="password" placeholder="至少6位">
+    </div>
+    <div class="form-group">
+      <label>真实姓名 *</label>
+      <input type="text" id="real_name" placeholder="请输入真实姓名">
+    </div>
+    <div class="form-group">
+      <label>学号</label>
+      <input type="text" id="student_id" placeholder="选填，如 2023010101">
+    </div>
+    <div class="form-group">
+      <label>学院</label>
+      <select id="college">
+        <option value="">请选择学院</option>
+        <option value="计算机学院">计算机学院</option>
+        <option value="电子信息学院">电子信息学院</option>
+        <option value="机械工程学院">机械工程学院</option>
+        <option value="经济管理学院">经济管理学院</option>
+        <option value="外国语学院">外国语学院</option>
+        <option value="艺术设计学院">艺术设计学院</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>班级</label>
+      <input type="text" id="class_name" placeholder="选填，如 计科2301班">
+    </div>
+    <div class="form-group">
+      <label>联系电话</label>
+      <input type="text" id="phone" placeholder="选填，便于联系领取">
+    </div>
+    <div class="form-actions">
+      <button class="btn" style="width:100%;" onclick="doRegister()">注 册</button>
+    </div>
+    <div style="text-align:center;margin-top:18px;font-size:13px;color:var(--text-secondary);">
+      已有账号？<a href="/login.html">去登录</a>
+    </div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+async function doRegister() {
+  const data = {
+    username: document.getElementById('username').value.trim(),
+    password: document.getElementById('password').value,
+    real_name: document.getElementById('real_name').value.trim(),
+    student_id: document.getElementById('student_id').value.trim(),
+    college: document.getElementById('college').value,
+    class_name: document.getElementById('class_name').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+  };
+  if (!data.username || !data.password) {
+    document.getElementById('msg').innerHTML = '<div class="alert error">账号和密码不能为空</div>';
+    return;
+  }
+  if (!data.real_name) {
+    document.getElementById('msg').innerHTML = '<div class="alert error">请填写真实姓名</div>';
+    return;
+  }
+  const r = await api('/api/register', { method: 'POST', body: data });
+  if (r.error) {
+    document.getElementById('msg').innerHTML = `<div class="alert error">${escapeHtml(r.error)}</div>`;
+    return;
+  }
+  document.getElementById('msg').innerHTML = '<div class="alert success">注册成功，正在跳转首页...</div>';
+  setTimeout(() => location.href = '/', 800);
+}
+</script>
+</body>
+</html>

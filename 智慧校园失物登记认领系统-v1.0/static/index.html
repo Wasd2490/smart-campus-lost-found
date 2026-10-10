@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧校园失物登记认领系统</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container">
+  <div class="hero">
+    <h1>智慧校园失物登记认领系统</h1>
+    <div class="actions">
+      <a href="/post-lost.html" class="btn btn-light">失物登记</a>
+      <a href="/post-notice.html" class="btn btn-light">招领通知</a>
+      <a href="/post-found.html" class="btn btn-ghost">领取登记</a>
+
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-type="lost" onclick="switchTab('lost')">寻物启事</div>
+    <div class="tab" data-type="found" onclick="switchTab('found')">招领启事</div>
+  </div>
+
+  <div class="search-bar">
+    <input type="text" id="kw" placeholder="搜索物品名称、描述、地点..." onkeydown="if(event.key==='Enter')loadList()">
+    <select id="category" onchange="loadList()">
+      <option value="">全部分类</option>
+      <option value="证件">证件</option>
+      <option value="电子设备">电子设备</option>
+      <option value="钥匙">钥匙</option>
+      <option value="衣物">衣物</option>
+      <option value="书籍">书籍</option>
+      <option value="其他">其他</option>
+    </select>
+    <button class="btn" onclick="loadList()">搜索</button>
+  </div>
+
+  <div id="list" class="item-grid"></div>
+</div>
+
+<div class="footer">智慧校园失物登记认领系统 </div>
+
+<script src="/js/common.js"></script>
+<script>
+let currentType = 'lost';
+
+function switchTab(type) {
+  currentType = type;
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.type === type);
+  });
+  loadList();
+}
+
+async function loadList() {
+  const kw = document.getElementById('kw').value.trim();
+  const cat = document.getElementById('category').value;
+  const url = `/api/${currentType}?kw=${encodeURIComponent(kw)}&category=${encodeURIComponent(cat)}`;
+  const { list = [] } = await api(url);
+  const box = document.getElementById('list');
+  if (!list.length) {
+    box.innerHTML = '<div class="empty" style="grid-column:1/-1;">暂无相关信息</div>';
+    return;
+  }
+  box.innerHTML = list.map(it => {
+    const location = currentType === 'lost' ? it.location_lost : it.location_found;
+    const time = currentType === 'lost' ? it.time_lost : it.time_found;
+    return `
+    <div class="item-card" onclick="location.href='/detail.html?type=${currentType}&id=${it.id}'">
+      ${it.image_path ? `<img src="${escapeHtml(it.image_path)}" style="width:100%;height:140px;object-fit:cover;border-radius:8px;">` : ''}
+      <span class="tag ${currentType}">${currentType === 'lost' ? '寻物' : '招领'}</span>
+      <div class="title">${escapeHtml(it.title)}</div>
+      <div class="meta">${escapeHtml((it.description || '').slice(0, 50))}</div>
+      <div class="meta">${icon.location} ${escapeHtml(location || '未知地点')}</div>
+      <div class="meta">${icon.clock} ${fmtTime(time)}</div>
+    </div>`;
+  }).join('');
+}
+
+loadList();
+</script>
+</body>
+</html>

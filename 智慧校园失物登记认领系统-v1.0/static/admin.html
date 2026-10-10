@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台 - 智慧校园失物登记认领系统</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container">
+  <div class="page-title">管理后台</div>
+  <div id="msg"></div>
+
+  <div class="stat-row" id="stats"></div>
+
+  <div class="card">
+    <h3 style="margin-bottom:16px;font-size:16px;">待审核 · 寻物启事</h3>
+    <div id="pending-lost"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:16px;font-size:16px;">待审核 · 招领启事</h3>
+    <div id="pending-found"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:16px;font-size:16px;">认领申请处理</h3>
+    <div id="pending-claims"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:16px;font-size:16px;">注册用户</h3>
+    <div id="user-list"></div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+async function load() {
+  const items = await api('/api/admin/pending-items');
+  if (items.error) {
+    document.getElementById('msg').innerHTML = `<div class="alert error">${items.error}</div>`;
+    return;
+  }
+  const claims = await api('/api/admin/claims');
+  const users = await api('/api/admin/users');
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="num">${(items.lost||[]).length + (items.found||[]).length}</div><div class="label">待审核发布</div></div>
+    <div class="stat-card"><div class="num">${(claims.list||[]).filter(c=>c.status==='pending').length}</div><div class="label">待处理认领</div></div>
+    <div class="stat-card"><div class="num">${(users.list||[]).length}</div><div class="label">注册用户</div></div>
+  `;
+
+  renderItems('pending-lost', items.lost || [], 'lost');
+  renderItems('pending-found', items.found || [], 'found');
+
+  const claimBox = document.getElementById('pending-claims');
+  if (!claims.list || !claims.list.length) {
+    claimBox.innerHTML = '<div class="empty">暂无认领申请</div>';
+  } else {
+    claimBox.innerHTML = `<table class="data"><thead><tr>
+      <th>认领物品</th><th>认领人</th><th>联系方式</th><th>物品特征描述</th><th>状态</th><th>操作</th>
+    </tr></thead><tbody>
+    ${claims.list.map(c => `
+      <tr>
+        <td><a href="/detail.html?type=found&id=${c.item_id}">${escapeHtml(c.item_title || '已删除')}</a></td>
+        <td>${escapeHtml(c.claimer_name || '')}</td>
+        <td>${escapeHtml(c.claimer_phone || '')}</td>
+        <td style="max-width:260px;">${escapeHtml(c.claim_reason || '')}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>${c.status === 'pending' ? `
+          <button class="btn small success" onclick="setClaim(${c.id},'approved')">通过</button>
+          <button class="btn small danger" onclick="setClaim(${c.id},'rejected')">驳回</button>
+        ` : ''}</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+
+  const uBox = document.getElementById('user-list');
+  if (!users.list || !users.list.length) {
+    uBox.innerHTML = '<div class="empty">暂无用户</div>';
+  } else {
+    uBox.innerHTML = `<table class="data"><thead><tr>
+      <th>ID</th><th>账号</th><th>姓名</th><th>角色</th><th>电话</th><th>注册时间</th>
+    </tr></thead><tbody>
+    ${users.list.map(u => `
+      <tr>
+        <td>${u.id}</td>
+        <td>${escapeHtml(u.username)}</td>
+        <td>${escapeHtml(u.real_name || '')}</td>
+        <td>${u.role === 'admin' ? '<span class="badge approved">管理员</span>' : '<span class="badge pending">普通用户</span>'}</td>
+        <td>${escapeHtml(u.phone || '')}</td>
+        <td>${fmtTime(u.created_at)}</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+}
+
+function renderItems(boxId, list, type) {
+  const box = document.getElementById(boxId);
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">暂无待审核信息</div>';
+    return;
+  }
+  box.innerHTML = `<table class="data"><thead><tr>
+    <th>图片</th><th>标题</th><th>发布者</th><th>地点</th><th>描述</th><th>状态</th><th>操作</th>
+  </tr></thead><tbody>
+  ${list.map(it => `
+    <tr>
+      <td>${it.image_path ? `<img src="${escapeHtml(it.image_path)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;" onclick="window.open('${escapeHtml(it.image_path)}')">` : '<span style="color:#cbd5e1;">无图</span>'}</td>
+      <td><a href="/detail.html?type=${type}&id=${it.id}">${escapeHtml(it.title)}</a></td>
+      <td>${escapeHtml(it.publisher_name || '')}</td>
+      <td>${escapeHtml(type === 'lost' ? it.location_lost : it.location_found) || ''}</td>
+      <td style="max-width:280px;">${escapeHtml(it.description || '无')}</td>
+      <td>${statusBadge(it.status)}</td>
+      <td>
+        <button class="btn small success" onclick="setItem('${type}',${it.id},'approved')">通过</button>
+        <button class="btn small danger" onclick="setItem('${type}',${it.id},'rejected')">驳回</button>
+        <button class="btn small secondary" onclick="setItem('${type}',${it.id},'claimed')">标记完成</button>
+      </td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+async function setItem(type, id, status) {
+  await api(`/api/admin/item/${type}/${id}/status`, { method: 'PUT', body: { status } });
+  load();
+}
+
+async function setClaim(id, status) {
+  await api(`/api/admin/claim/${id}/status`, { method: 'PUT', body: { status } });
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

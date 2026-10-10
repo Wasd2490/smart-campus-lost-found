@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的记录 - 智慧校园失物登记认领系统</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container">
+  <div class="page-title">我的记录</div>
+  <div id="msg"></div>
+
+  <div class="card">
+    <h3 style="margin-bottom:16px;font-size:16px;">我发布的寻物启事</h3>
+    <div id="my-lost"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:16px;font-size:16px;">我发布的招领启事</h3>
+    <div id="my-found"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:16px;font-size:16px;">我提交的认领申请</h3>
+    <div id="my-claims"></div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+async function load() {
+  const posts = await api('/api/my/posts');
+  if (posts.error) { location.href = '/login.html'; return; }
+  const claims = await api('/api/my/claims');
+
+  const lostBox = document.getElementById('my-lost');
+  if (!posts.lost || !posts.lost.length) {
+    lostBox.innerHTML = '<div class="empty">还没有发布过寻物启事</div>';
+  } else {
+    lostBox.innerHTML = `<table class="data"><thead><tr>
+      <th>标题</th><th>地点</th><th>状态</th><th>发布时间</th><th>操作</th>
+    </tr></thead><tbody>
+    ${posts.lost.map(it => `
+      <tr>
+        <td><a href="/detail.html?type=lost&id=${it.id}">${escapeHtml(it.title)}</a></td>
+        <td>${escapeHtml(it.location_lost || '')}</td>
+        <td>${statusBadge(it.status)}</td>
+        <td>${fmtTime(it.created_at)}</td>
+        <td>
+          ${it.status === 'approved' ? `<button class="btn small success" onclick="recoverItem(${it.id})">已找回</button>` : ''}
+          <button class="btn small danger" onclick="delItem('lost',${it.id})">删除</button>
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+
+  const foundBox = document.getElementById('my-found');
+  if (!posts.found || !posts.found.length) {
+    foundBox.innerHTML = '<div class="empty">还没有发布过招领启事</div>';
+  } else {
+    foundBox.innerHTML = `<table class="data"><thead><tr>
+      <th>标题</th><th>地点</th><th>状态</th><th>发布时间</th><th>操作</th>
+    </tr></thead><tbody>
+    ${posts.found.map(it => `
+      <tr>
+        <td><a href="/detail.html?type=found&id=${it.id}">${escapeHtml(it.title)}</a></td>
+        <td>${escapeHtml(it.location_found || '')}</td>
+        <td>${statusBadge(it.status)}</td>
+        <td>${fmtTime(it.created_at)}</td>
+        <td><button class="btn small danger" onclick="delItem('found',${it.id})">删除</button></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+
+  const claimBox = document.getElementById('my-claims');
+  if (!claims.list || !claims.list.length) {
+    claimBox.innerHTML = '<div class="empty">还没有提交过认领申请</div>';
+  } else {
+    claimBox.innerHTML = `<table class="data"><thead><tr>
+      <th>认领物品</th><th>认领理由</th><th>审核状态</th><th>申请时间</th>
+    </tr></thead><tbody>
+    ${claims.list.map(c => `
+      <tr>
+        <td>${escapeHtml(c.item_title || '已删除')}</td>
+        <td>${escapeHtml((c.claim_reason || '').slice(0, 40))}</td>
+        <td>${statusBadge(c.status)}</td>
+        <td>${fmtTime(c.created_at)}</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+}
+
+async function delItem(type, id) {
+  if (!confirm('确定删除这条信息吗？')) return;
+  await api(`/api/${type}/${id}`, { method: 'DELETE' });
+  load();
+}
+
+async function recoverItem(id) {
+  if (!confirm('确认物品已找回？标记后将从首页消失。')) return;
+  await api('/api/recover', { method: 'POST', body: { item_id: id, item_type: 'lost' } });
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

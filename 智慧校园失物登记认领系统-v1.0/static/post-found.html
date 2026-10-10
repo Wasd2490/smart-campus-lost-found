@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>领取确认 - 智慧校园失物登记认领系统</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container" style="max-width:680px;">
+  <div class="page-title">领取确认</div>
+  <div class="card">
+    <div id="msg"></div>
+    <div class="form-group">
+      <label>选择物品 *</label>
+      <select id="item_id">
+        <option value="">-- 请选择要确认领取的物品 --</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>物品领取说明</label>
+      <textarea id="claim_reason" rows="4" placeholder="填写领取确认信息，如物品特征、领取人姓名、联系方式等"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn success" onclick="doSubmit()">确认领取</button>
+      <a href="/" class="btn secondary">取消</a>
+    </div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+let allItems = [];
+
+async function loadItems() {
+  const [lostRes, foundRes] = await Promise.all([
+    api('/api/lost'),
+    api('/api/found'),
+  ]);
+  allItems = [
+    ...(lostRes.list || []).map(it => ({ ...it, type: 'lost', typeName: '寻物启事' })),
+    ...(foundRes.list || []).map(it => ({ ...it, type: 'found', typeName: '招领启事' })),
+  ];
+  const select = document.getElementById('item_id');
+  select.innerHTML = '<option value="">-- 请选择要确认领取的物品 --</option>' +
+    allItems.map(it =>
+      `<option value="${it.id}" data-type="${it.type}">[${it.typeName}] ${escapeHtml(it.title)}</option>`
+    ).join('');
+}
+
+async function doSubmit() {
+  const itemId = document.getElementById('item_id').value;
+  const reason = document.getElementById('claim_reason').value.trim();
+  if (!itemId) {
+    document.getElementById('msg').innerHTML = '<div class="alert error">请选择要确认领取的物品</div>';
+    return;
+  }
+  const opt = document.getElementById('item_id').selectedOptions[0];
+  const itemType = opt.dataset.type;
+
+  const r = await api('/api/recover', {
+    method: 'POST',
+    body: { item_id: itemId, item_type: itemType },
+  });
+  if (r.error) {
+    document.getElementById('msg').innerHTML = `<div class="alert error">${escapeHtml(r.error)}</div>`;
+    return;
+  }
+  document.getElementById('msg').innerHTML = '<div class="alert success">已确认领取，该物品将从首页消失。</div>';
+  setTimeout(() => location.href = '/my.html', 1500);
+}
+
+loadItems();
+</script>
+</body>
+</html>

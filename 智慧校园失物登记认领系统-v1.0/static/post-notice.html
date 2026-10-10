@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发布招领通知 - 智慧校园失物登记认领系统</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container" style="max-width:680px;">
+  <div class="page-title">发布招领通知</div>
+  <div class="card">
+    <div id="msg"></div>
+    <div class="form-group">
+      <label>物品标题 *</label>
+      <input type="text" id="title" placeholder="例如：在食堂捡到一把黑色雨伞">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>物品分类</label>
+        <select id="category">
+          <option>证件</option>
+          <option>电子设备</option>
+          <option>钥匙</option>
+          <option>衣物</option>
+          <option>书籍</option>
+          <option selected>其他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>捡拾时间</label>
+        <input type="datetime-local" id="time_found">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>捡拾地点</label>
+      <input type="text" id="location_found" placeholder="例如：食堂一楼 / 快递站 / 图书馆">
+    </div>
+    <div class="form-group">
+      <label>物品描述 / 特征</label>
+      <textarea id="description" rows="4" placeholder="描述物品特征，不要泄露证件号等隐私信息"></textarea>
+    </div>
+    <div class="form-group">
+      <label>物品照片（选填）</label>
+      <input type="file" id="photo" accept="image/*" capture="environment" style="display:none;" onchange="handlePhoto(this)">
+      <div id="preview-area" style="display:flex;align-items:flex-start;gap:12px;">
+        <button type="button" class="btn secondary small" onclick="document.getElementById('photo').click()">
+          拍照 / 上传图片
+        </button>
+        <div id="preview-wrap" style="display:none;position:relative;">
+          <img id="preview" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block;">
+          <button type="button" onclick="removePhoto()"
+            style="position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;background:var(--danger);color:#fff;border:none;cursor:pointer;font-size:14px;line-height:1;box-shadow:0 2px 4px rgba(0,0,0,.2);">×</button>
+        </div>
+        <span id="upload-tip" style="font-size:12px;color:var(--text-secondary);padding-top:4px;"></span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>联系方式</label>
+      <input type="text" id="contact" placeholder="手机号或微信，留空则使用注册电话">
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="doSubmit()">提交发布</button>
+      <a href="/" class="btn secondary">取消</a>
+    </div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+let imagePath = null;
+
+function removePhoto() {
+  imagePath = null;
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('preview').src = '';
+  document.getElementById('upload-tip').textContent = '';
+  document.getElementById('photo').value = '';
+}
+
+function handlePhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const img = new Image();
+    img.onload = async function() {
+      const canvas = document.createElement('canvas');
+      const maxW = 800;
+      const scale = Math.min(1, maxW / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      document.getElementById('preview').src = dataUrl;
+      document.getElementById('preview-wrap').style.display = 'block';
+      document.getElementById('upload-tip').textContent = '上传中...';
+      const r = await api('/api/upload', { method: 'POST', body: { image: dataUrl } });
+      if (r.ok) {
+        imagePath = r.path;
+        document.getElementById('upload-tip').textContent = '已上传';
+      } else {
+        document.getElementById('upload-tip').textContent = r.error || '上传失败';
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function doSubmit() {
+  const timeVal = document.getElementById('time_found').value;
+  const data = {
+    title: document.getElementById('title').value.trim(),
+    category: document.getElementById('category').value,
+    time_found: timeVal ? timeVal.replace('T', ' ') + ':00' : null,
+    location_found: document.getElementById('location_found').value.trim(),
+    description: document.getElementById('description').value.trim(),
+    contact: document.getElementById('contact').value.trim(),
+    image_path: imagePath,
+  };
+  if (!data.title) {
+    document.getElementById('msg').innerHTML = '<div class="alert error">请填写物品标题</div>';
+    return;
+  }
+  const r = await api('/api/found', { method: 'POST', body: data });
+  if (r.error) {
+    if (r.error.includes('登录')) location.href = '/login.html';
+    document.getElementById('msg').innerHTML = `<div class="alert error">${escapeHtml(r.error)}</div>`;
+    return;
+  }
+  document.getElementById('msg').innerHTML = '<div class="alert success">发布成功，等待管理员审核后展示。</div>';
+  setTimeout(() => location.href = '/my.html', 1200);
+}
+</script>
+</body>
+</html>

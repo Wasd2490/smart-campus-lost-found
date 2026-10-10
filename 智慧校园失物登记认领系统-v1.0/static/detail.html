@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物品详情 - 智慧校园失物登记认领系统</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container" style="max-width:760px;">
+  <div id="content"></div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const type = params.get('type') || 'found';
+const id = params.get('id');
+
+async function load() {
+  const { item, error } = await api(`/api/${type}/${id}`);
+  const box = document.getElementById('content');
+  if (error) {
+    box.innerHTML = `<div class="card empty">${escapeHtml(error)}</div>`;
+    return;
+  }
+  const isLost = type === 'lost';
+  const location = isLost ? item.location_lost : item.location_found;
+  const time = isLost ? item.time_lost : item.time_found;
+
+  box.innerHTML = `
+    <div class="page-title" style="display:flex;align-items:center;gap:12px;">
+      ${escapeHtml(item.title)}
+      ${statusBadge(item.status)}
+    </div>
+    <div class="card">
+      <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center;">
+        <span class="tag ${type}" style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:500;background:${type==='lost'?'#fef2f2':'#f0fdf4'};color:${type==='lost'?'var(--danger)':'var(--success)'};">${isLost ? '寻物启事' : '招领启事'}</span>
+        <span style="font-size:13px;color:var(--text-secondary);">${escapeHtml(item.category || '其他')}</span>
+      </div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">物品描述</div>
+        <div>${escapeHtml(item.description || '无')}</div>
+      </div>
+      ${item.image_path ? `
+      <div style="margin-bottom:14px;">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px;">物品照片</div>
+        <img src="${escapeHtml(item.image_path)}" style="max-width:100%;max-height:320px;border-radius:8px;border:1px solid var(--border);object-fit:contain;">
+      </div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:2px;">${isLost ? '丢失地点' : '捡拾地点'}</div>
+          <div>${icon.location} ${escapeHtml(location || '未知')}</div>
+        </div>
+        <div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:2px;">${isLost ? '丢失时间' : '捡拾时间'}</div>
+          <div>${icon.clock} ${fmtTime(time)}</div>
+        </div>
+      </div>
+      ${item.contact ? `
+      <div style="margin-bottom:14px;padding:12px;background:var(--primary-light);border-radius:8px;">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">联系方式</div>
+        <div style="font-size:16px;font-weight:600;color:var(--primary-dark);">${escapeHtml(item.contact)}</div>
+      </div>` : ''}
+      <div style="padding-top:14px;border-top:1px solid var(--border);font-size:13px;color:var(--text-secondary);">
+        发布者：${escapeHtml(item.publisher_name || '')} · 发布于 ${fmtTime(item.created_at)}
+      </div>
+    </div>
+    <div id="claim-area"></div>
+    <div class="card">
+      <h3 style="margin-bottom:16px;font-size:16px;">留言评论</h3>
+      <div id="comment-list"></div>
+      <div id="comment-form" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);"></div>
+    </div>
+  `;
+
+  if (type === 'found' && item.status === 'approved') {
+    document.getElementById('claim-area').innerHTML = `
+      <div class="card">
+        <h3 style="margin-bottom:12px;font-size:16px;">我是失主，申请认领</h3>
+        <div id="claim-msg"></div>
+        <div class="form-group">
+          <label>请描述物品特征以证明归属（必填）*</label>
+          <textarea id="claim_reason" rows="3" placeholder="例如：这把雨伞是黑色折叠伞，伞柄上有蓝色挂件..."></textarea>
+        </div>
+        <button class="btn success" onclick="submitClaim()">提交认领申请</button>
+      </div>
+    `;
+  }
+
+  loadComments();
+}
+
+async function loadComments() {
+  const { list = [] } = await api(`/api/comments?type=${type}&item_id=${id}`);
+  const box = document.getElementById('comment-list');
+  if (!box) return;
+  if (!list.length) {
+    box.innerHTML = '<div class="empty" style="padding:20px 0;">还没有留言，来抢沙发</div>';
+  } else {
+    box.innerHTML = list.map(c => `
+      <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;flex-shrink:0;">${escapeHtml((c.real_name || c.username || '?').charAt(0))}</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;">
+            <span style="font-weight:600;">${escapeHtml(c.real_name || c.username)}</span>
+            <span style="color:var(--text-secondary);font-size:12px;margin-left:8px;">${fmtTime(c.created_at)}</span>
+          </div>
+          <div style="font-size:14px;margin-top:4px;">${escapeHtml(c.content)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const formBox = document.getElementById('comment-form');
+  if (window.__CURRENT_USER) {
+    formBox.innerHTML = `
+      <div class="form-group" style="margin-bottom:10px;">
+        <textarea id="comment-content" rows="2" placeholder="写下你的留言..."></textarea>
+      </div>
+      <button class="btn small" onclick="submitComment()">发送</button>
+    `;
+  } else {
+    formBox.innerHTML = '<div style="text-align:center;color:var(--text-secondary);font-size:13px;">请先<a href="/login.html">登录</a>后留言</div>';
+  }
+}
+
+async function submitComment() {
+  const content = document.getElementById('comment-content').value.trim();
+  if (!content) return;
+  await api('/api/comments', {
+    method: 'POST',
+    body: { item_type: type, item_id: id, content },
+  });
+  document.getElementById('comment-content').value = '';
+  loadComments();
+}
+
+async function submitClaim() {
+  if (!window.__CURRENT_USER) { location.href = '/login.html'; return; }
+  const reason = document.getElementById('claim_reason').value.trim();
+  if (!reason) {
+    document.getElementById('claim-msg').innerHTML = '<div class="alert error">请填写物品特征描述</div>';
+    return;
+  }
+  const r = await api('/api/claim', {
+    method: 'POST',
+    body: { item_id: id, item_type: 'found', claim_reason: reason },
+  });
+  if (r.error) {
+    document.getElementById('claim-msg').innerHTML = `<div class="alert error">${escapeHtml(r.error)}</div>`;
+    return;
+  }
+  document.getElementById('claim-msg').innerHTML = '<div class="alert success">申请已提交，等待管理员审核。</div>';
+  document.getElementById('claim_reason').value = '';
+}
+
+load();
+</script>
+</body>
+</html>
